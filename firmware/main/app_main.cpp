@@ -34,6 +34,7 @@
 #include <app_reset.h>
 #include <binding.h>
 #include <button.h>
+#include <ota_confirm.h>
 #include <relay.h>
 #include <status_led.h>
 #include <thermal.h>
@@ -71,6 +72,8 @@ static void app_event_cb(const ChipDeviceEvent *event, intptr_t arg)
         if (chip::DeviceLayer::ConnectivityMgr().IsThreadAttached()) {
             ESP_LOGI(TAG, "Thread attached");
             status_led_set_state(LED_STATE_THREAD_CONNECTED);
+            // Reachable for the next update: a freshly updated image is kept.
+            ota_confirm_healthy();
         } else if (is_commissioned()) {
             // While uncommissioned, keep the BLE advertising blink.
             ESP_LOGI(TAG, "Thread detached");
@@ -137,6 +140,9 @@ static esp_err_t app_attribute_update_cb(attribute::callback_type_t type, uint16
 
 extern "C" void app_main()
 {
+    // First, so a crash anywhere below rolls a fresh update back.
+    ota_confirm_init();
+
     nvs_flash_init();
     status_led_init();
 

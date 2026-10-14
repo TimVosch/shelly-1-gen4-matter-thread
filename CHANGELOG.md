@@ -13,6 +13,8 @@ One firmware for the Shelly 1 Mini Gen4, replacing the per-variant builds. It co
 #### Added
 - Generic Switch endpoint (endpoint 4) for a momentary push button on the SW terminal, with the MomentarySwitch, MomentarySwitchRelease, MomentarySwitchLongPress, and MomentarySwitchMultiPress features and MultiPressMax 2. It reports single press (InitialPress, ShortRelease, MultiPressComplete 1), double press (MultiPressComplete 2), and long press (LongPress after 600 ms held, LongRelease on release). Debounce is 30 ms and the multi-press window 400 ms. Home Assistant shows it as an event entity with `multi_press_1`, `multi_press_2`, `long_press`, and `long_release`.
 - All board pins in one header, `firmware/main/board.h`, so further Gen4 boards can be added as additional targets.
+- App rollback for Matter OTA updates. The first boot of an update is kept once the device attaches to Thread. If it resets before that, or has not attached within 10 minutes, the bootloader returns to the previous firmware. Requires the rollback bootloader, which 2.0.0 installs over UART and the web UI carry.
+- `bootloader-updater/`, a one-shot Matter OTA image that installs the rollback bootloader on devices installed before 2.0.0 and then boots back into their existing firmware, without UART. `scripts/make-matter-ota.py` packages it with `--pid` set to the product ID on the device.
 
 #### Changed
 - One ESP-IDF project in `firmware/` replaces the six per-variant projects under `source/`. The project is `shelly-1-mini-gen4` and builds `build/shelly-1-mini-gen4.bin`.

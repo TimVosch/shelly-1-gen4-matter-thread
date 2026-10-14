@@ -76,7 +76,7 @@ Once the image is loaded, the update is available in two places. Use whichever y
 
 1. Trigger the update from either location above.
 2. The device downloads over Thread, writes its inactive slot, verifies, and reboots into the new firmware. If the update does not appear right away, the device queries on its own timer; power-cycling it prompts an immediate check.
-3. The device comes back reporting the new version, and the server then offers nothing further. If the download is interrupted or the image fails verification, the device keeps running its current firmware. There is no automatic rollback for an image that installs and then crashes at boot; recovering from that needs a UART reflash. See [Known limitations](ROADMAP.md#known-limitations).
+3. The device comes back reporting the new version, and the server then offers nothing further. If the download is interrupted or the image fails verification, the device keeps running its current firmware. If the new image installs but crashes, or does not reach Thread within 10 minutes, the device rolls back to the previous firmware on its own. This needs the rollback bootloader: devices installed with 2.0.0 or later over UART or the web UI have it, older devices get it from the [bootloader updater](../bootloader-updater/README.md).
 
 > 💡 **One image updates every matching device.** The provider offers the stored image by vendor and product ID; a single `.ota` updates every device with that product ID on your Thread network. Publish once, and each matching device picks it up the next time it checks in.
 
@@ -93,6 +93,8 @@ If you build from source and have a UART adapter on the device, `idf.py flash` u
 Firmware 2.0.0 keeps Matter product ID `0x8006`, the one the Shelly 1 Mini Gen4 Light Switch 1.0.0 used, so a device on that release updates to it over [Matter OTA through Home Assistant](#matter-ota-through-home-assistant) like any other update. Commissioning, Thread credentials, and bindings are kept. The update removes the old contact sensor endpoint and adds the Generic Switch on endpoint 4; if Home Assistant does not show the new button events afterward, use **Re-interview device** on the device page.
 
 The SW input now expects a momentary push button. A toggle switch wired to it no longer behaves as it did on the Light Switch release: switching it on reads as a held button (InitialPress, then LongPress) and switching it off as LongRelease, so it never produces the single press that sends the bound Toggle. Replace it with a push button. See [Wall button](../README.md#wall-button).
+
+Install the [bootloader updater](../bootloader-updater/README.md) first. It is a separate one-time Matter OTA image that gives the device a bootloader with rollback, so this update and every later one is a step you can come back from without UART. The 1.0.0 to 2.0.0 update itself is the last one that is not protected (see the updater's README for why).
 
 Devices on other builds cannot update to this firmware over Matter OTA, because the product ID does not match:
 

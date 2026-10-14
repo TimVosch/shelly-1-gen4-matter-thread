@@ -97,7 +97,7 @@ Once it is up and running, [updates are available](docs/UPDATING.md) through Hom
 ## Features
 
 - Shelly web UI install, with no UART adapter required (unless you want [reversibility](docs/REVERSIBILITY.md)).
-- Updates through Home Assistant with Matter OTA.
+- Updates through Home Assistant with Matter OTA, with automatic rollback if an update crashes or never reaches Thread. Devices installed before 2.0.0 get the needed bootloader from the [bootloader updater](bootloader-updater/README.md), no UART required.
 - Physical button toggle on the onboard relay button.
 - Wall push button on the SW terminal, exposed as a Matter Generic Switch with single, double, and long press.
 - Matter binding. A single press of the wall button toggles bound Matter devices directly.
@@ -157,7 +157,8 @@ shelly-1-gen4-matter-thread/
 ├── LICENSE            Apache 2.0.
 ├── docs/              Documentation and the images it references.
 ├── scripts/           Build scripts that package the release artifacts.
-└── firmware/          The ESP-IDF project for the Shelly 1 Mini Gen4. Pins are in main/board.h.
+├── firmware/          The ESP-IDF project for the Shelly 1 Mini Gen4. Pins are in main/board.h.
+└── bootloader-updater/ One-shot OTA image that gives older devices the rollback bootloader.
 ```
 
 `firmware/` is a self-contained ESP-IDF project. See [Building from Source](docs/BUILDING.md) for how to build it.
