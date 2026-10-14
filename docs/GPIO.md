@@ -8,6 +8,8 @@ This page records those pin assignments so that anyone porting this or any other
 
 Pins listed as confirmed were verified on real hardware. Pins listed as `GPIOnn` are unverified at this time.
 
+The firmware in this repository currently targets the Shelly 1 Mini Gen4 only. The pins it uses are defined in [`firmware/main/board.h`](../firmware/main/board.h); the other tables are here for reference and for future board targets.
+
 ## Contents
 
 - [Shelly 1 Gen4](#shelly-1-gen4)

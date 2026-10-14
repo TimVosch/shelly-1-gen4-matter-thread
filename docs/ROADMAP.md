@@ -16,19 +16,19 @@ This document tracks the current known limitations and the planned work. To prio
 ## Known limitations
 
 - Matter OTA updates are supported and documented in Home Assistant only. Because the firmware uses test credentials, the assumption is that no other major Matter ecosystem will serve OTA updates to it. Commissioning-preserving updates run through Home Assistant's Matter Server. See [Updating](UPDATING.md).
-- Thermal protection is validated on the Shelly 1 Mini Gen4. All firmware variants read the silicon die temperature and cut the relay above 75°C sustained for 10 seconds. The trip, the latch that blocks turn-on while hot, and the automatic recovery were tested on Shelly 1 Mini Gen4 hardware, and the trip logic is shared across all devices and variants.
+- Thermal protection is validated on the Shelly 1 Mini Gen4. The firmware reads the silicon die temperature and cuts the relay above 75°C sustained for 10 seconds. While the fault is active, turn-on is refused; it clears once the temperature drops below 70°C. The trip, the latch that blocks turn-on while hot, and the automatic recovery were tested on Shelly 1 Mini Gen4 hardware with the earlier 75°C clear point; the 70°C clear point in 2.0.0 is not yet hardware-tested.
+- No app rollback after a Matter OTA update. ESP-IDF app rollback (`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`) is not enabled, and Matter OTA replaces only the app, not the bootloader, so it cannot be turned on for devices already in the field through OTA. An update that boots but then crashes needs a UART reflash to recover.
+- Matter OTA images are integrity-checked but not signed. The `.ota` header carries a SHA-256 digest of the payload, which catches a corrupted download, but nothing ties the image to this project. Any administrator on a fabric the device is commissioned to can push an image to it.
 
 ---
 
 ## Planned
 
-- Shelly 1PM Gen4 support.
-- Shelly 2PM Gen4 support.
+- Bring back the Shelly 1 Gen4, and add the Shelly 1PM Gen4 and 2PM Gen4, as additional `board.h` targets of the single firmware.
 - Shelly Flood Gen4 support.
 - NTC on devices that carry one instead of reporting internal die temperature.
-- A Sleepy End Device variant for battery and solar constrained installs, trading mesh extension for lower power.
-- Build ergonomics. Migrate the build to consume esp-matter through the component library instead of a separately installed SDK, and fold the C6 and Thread settings into the base sdkconfig.defaults, so a plain `idf.py build` works without extra setup.
-- Shared components directory across all variant builds.
+- A Sleepy End Device build for battery and solar constrained installs, trading mesh extension for lower power.
+- Build ergonomics. Migrate the build to consume esp-matter through the component library instead of a separately installed SDK.
 
 ---
 

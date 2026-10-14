@@ -2,7 +2,7 @@
 
 **[README](../README.md)** > **Commissioning** · [Report an issue](../../../issues/new)
 
-This guide covers pairing a freshly flashed Shelly Gen4 device to your smart home ecosystem, sharing one device across multiple ecosystems, reading the status LED, troubleshooting a stalled commissioning, and factory resetting the device. It notes the Opener variant's differences where they apply. If you have not flashed the firmware yet, start with the [Flashing Guide](FLASHING.md). Once it is commissioned, [updates are available](UPDATING.md) through Home Assistant with Matter OTA, with commissioning preserved.
+This guide covers pairing a freshly flashed Shelly Gen4 device to your smart home ecosystem, sharing one device across multiple ecosystems, reading the status LED, using the wall button and its binding, troubleshooting a stalled commissioning, and factory resetting the device. If you have not flashed the firmware yet, start with the [Flashing Guide](FLASHING.md). Once it is commissioned, [updates are available](UPDATING.md) through Home Assistant with Matter OTA, with commissioning preserved.
 
 ---
 
@@ -13,7 +13,7 @@ This guide covers pairing a freshly flashed Shelly Gen4 device to your smart hom
 - [Apple Home](#apple-home)
 - [Google Home, Alexa, Home Assistant](#google-home-alexa-home-assistant)
 - [Commissioning to multiple ecosystems](#commissioning-to-multiple-ecosystems)
-- [Opener variant](#opener-variant)
+- [Using the wall button](#using-the-wall-button)
 - [Troubleshooting](#troubleshooting)
 - [Factory reset](#factory-reset)
 
@@ -57,7 +57,7 @@ Scan the QR code above with the Home app, or enter the setup code manually.
 4. Press Add Anyway when prompted. This is expected. See [Certification](CERTIFICATION.md) for why.
 5. Name the device and place it in a room.
 
-> Note for users coming from HomeKit Bridge or Home Assistant setups. HomeKit's reclassify as Fan, Light, or Switch option, available when bridging a stock Shelly through Home Assistant, is not available with native Matter devices. The Matter device type is declared by the firmware at flash time and cannot be changed in the Apple Home app. If you need a different device type, flash the [variant](../README.md#variants) that provides it.
+> Note for users coming from HomeKit Bridge or Home Assistant setups. HomeKit's reclassify as Fan, Light, or Switch option, available when bridging a stock Shelly through Home Assistant, is not available with native Matter devices. The Matter device type is declared by the firmware at flash time and cannot be changed in the Apple Home app. The relay is an On/Off Light; see [Firmware](../README.md#firmware) for every endpoint the device exposes.
 
 ---
 
@@ -87,20 +87,30 @@ The status LED stays solid through this process. The device is already on Thread
 
 ---
 
-## Opener variant
+## Using the wall button
 
-The Opener variant commissions exactly as above. It behaves differently from the Light variant once paired.
+The SW terminal is for a momentary push button and does not switch the relay. What it does is described in [Wall button](../README.md#wall-button). There are two ways to put it to use, and they can be combined.
 
-- It presents as a switch or outlet for the relay trigger, plus a separate contact sensor for door state. It is not a light.
-- The trigger is momentary. When you turn it on from a controller, the relay energizes for about 500ms and the firmware returns it to off. The control tile may briefly show on and then revert to off. This is the controller reconciling a momentary action that Matter models as On/Off, and it is normal. Triggering from the onboard button updates almost instantly.
+### Automations
 
-### Apple Home
+Each press is reported as an event on the Generic Switch endpoint (endpoint 4). In Home Assistant it appears as an event entity on the device, with the event types `multi_press_1` (single press), `multi_press_2` (double press), `long_press`, and `long_release`; `initial_press` and `short_release` may also appear. Use the entity as a trigger in an automation. A single press is reported about 400 ms after release, once the device knows no second press is coming. If you updated from the Mini Light Switch 1.0.0 and the event entity is missing, use **Re-interview device** on the device page.
 
-The contact sensor can be recategorized to Garage Door in its accessory settings, which gives a native garage door status display. Door, Window, and Blinds are also available. This changes only how Apple Home labels and displays the sensor. It does not change the Matter device type, which is fixed at flash time. The relay tile acts as the momentary trigger.
+Support for Generic Switch events in other ecosystems varies and has not been tested.
 
-### Home Assistant
+### Bindings
 
-Home Assistant exposes the Opener as a switch for the trigger and a binary sensor for door state. To get a single garage tile, combine them into a Cover template with `device_class: garage`, using the switch to trigger and the binary sensor to report open or closed.
+A binding lets a single press toggle another Matter device directly, device to device, with no controller involved once it is set up. The On/Off Light Switch on endpoint 2 sends an OnOff Toggle to whatever is in its binding list: a bulb, a group, or the Shelly's own relay on endpoint 1 if you want the button to switch the wired load. Double and long presses do not send anything to the binding. Out of the box nothing is bound.
+
+Mainstream apps do not offer a way to create bindings. Two tools that do:
+
+- **Home Assistant:** the [Matter Binding Helper](https://github.com/cedricziel/ha-matter-binding-helper) by Cedric Ziel.
+- **chip-tool:** write the Binding attribute on the Shelly's endpoint 2, then add an access control entry on the target device that grants the Shelly's node ID Operate privilege, so it accepts the command. The Toggle is an ordinary Matter command even when the target is the Shelly's own relay, so that case needs the entry on the Shelly itself. With `<shelly>` the Shelly's node ID on the chip-tool fabric and `<target>` the bound device's node ID:
+
+  ```bash
+  chip-tool binding write binding '[{"node": <target>, "endpoint": 1, "cluster": 6}]' <shelly> 2
+  ```
+
+Bindings survive a Matter OTA update and a reboot. A factory reset clears them.
 
 ---
 
@@ -119,7 +129,7 @@ If Home Assistant's Matter integration hangs during commissioning or shows "sett
 
 ## Factory reset
 
-Hold the onboard relay button for several seconds. On this firmware that clears the device's Matter commissioning and returns it to BLE commissioning mode. It does not restore the original Shelly firmware or factory state; the Automatous firmware stays installed, and going back to stock requires the UART backup (see [Reversibility](REVERSIBILITY.md)). The LED returns to the rapid blink pattern from the [status LED reference](#status-led-reference), which confirms the reset worked. Remove the device from any ecosystems you added it to before re-commissioning.
+Hold the onboard relay button for 10 seconds. On this firmware that clears the device's Matter commissioning and returns it to BLE commissioning mode. It does not restore the original Shelly firmware or factory state; the Automatous firmware stays installed, and going back to stock requires the UART backup (see [Reversibility](REVERSIBILITY.md)). The LED returns to the rapid blink pattern from the [status LED reference](#status-led-reference), which confirms the reset worked. Remove the device from any ecosystems you added it to before re-commissioning.
 
 ---
 

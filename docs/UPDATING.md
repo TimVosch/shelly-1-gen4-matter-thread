@@ -4,7 +4,7 @@
 
 This guide covers updating a supported Shelly Gen4 device that is already running the Automatous firmware with Matter OTA support. There are three paths, and the right one depends on whether you want to keep the device's Matter commissioning or not. If you have not flashed the firmware yet, start with the [Flashing Guide](FLASHING.md).
 
-If your Shelly 1 Gen4 is running an Automatous build earlier than v2.0.0, update it with a one-time full reflash over [UART](FLASHING.md#flash-with-usb-uart). The partition layout changed in v2.0.0; this one step erases commissioning and needs to be re-commissioned afterward. From v2.0.0 onward this requirement no longer applies, and further updates are delivered via OTA. The Shelly 1 Mini Gen4 has had the OTA-capable layout since its first release.
+The current firmware targets the Shelly 1 Mini Gen4. A device running the Mini Light Switch 1.0.0 can move to it over Matter OTA; see [Upgrading from the Mini Light Switch 1.0.0](#upgrading-from-the-mini-light-switch-100). Shelly 1 Gen4 builds are no longer part of this tree, and their earlier releases remain on the [releases page](../../../releases).
 
 ---
 
@@ -13,6 +13,7 @@ If your Shelly 1 Gen4 is running an Automatous build earlier than v2.0.0, update
 - [Choosing an update path](#choosing-an-update-path)
 - [Matter OTA through Home Assistant](#matter-ota-through-home-assistant)
 - [ESP-IDF CLI](#esp-idf-cli)
+- [Upgrading from the Mini Light Switch 1.0.0](#upgrading-from-the-mini-light-switch-100)
 - [Building the OTA image](#building-the-ota-image)
 
 ---
@@ -27,7 +28,7 @@ If your Shelly 1 Gen4 is running an Automatous build earlier than v2.0.0, update
 
 The easiest path is Matter OTA. The new firmware is sent to the device over Thread, the device writes it to its inactive slot and reboots, and its Matter commissioning, Thread credentials, and ecosystem pairings all survive. No wires, no re-pairing.
 
-ESPConnect is the full reinstall covered in the [Flashing Guide](FLASHING.md#flash-with-espconnect). It is listed here for comparison only. It erases flash, and therefore commissioning, so it is for a first install or switching variants, and not for an in-place update.
+ESPConnect is the full reinstall covered in the [Flashing Guide](FLASHING.md#flash-with-espconnect). It is listed here for comparison only. It erases flash, and therefore commissioning, so it is for a first install or moving a device from a build with a different product ID, and not for an in-place update.
 
 ---
 
@@ -49,7 +50,7 @@ Enabling it also points the server at its OTA folder, `/addon_configs/core_matte
 
 ### 2. Get the OTA image
 
-Download the `.ota` for your device and variant from the [latest release](../../../releases/latest), or [build it yourself](#building-the-ota-image). The image is named `automatous-io-{hardware}-{variant}-vX.Y.Z.ota`. Its version must be higher than what the device is running, or the server has nothing newer to offer.
+Download the `.ota` from the [latest release](../../../releases/latest), or [build it yourself](#building-the-ota-image). The image is named `automatous-io-shelly-1-mini-gen4-vX.Y.Z.ota`. Its version must be higher than what the device is running, or the server has nothing newer to offer.
 
 ### 3. Place the image
 
@@ -75,9 +76,9 @@ Once the image is loaded, the update is available in two places. Use whichever y
 
 1. Trigger the update from either location above.
 2. The device downloads over Thread, writes its inactive slot, verifies, and reboots into the new firmware. If the update does not appear right away, the device queries on its own timer; power-cycling it prompts an immediate check.
-3. The device comes back reporting the new version, and the server then offers nothing further. A bad image rolls back to the previous slot. A failed update does not brick a commissioned device.
+3. The device comes back reporting the new version, and the server then offers nothing further. If the download is interrupted or the image fails verification, the device keeps running its current firmware. There is no automatic rollback for an image that installs and then crashes at boot; recovering from that needs a UART reflash. See [Known limitations](ROADMAP.md#known-limitations).
 
-> 💡 **One image updates every matching device.** The provider offers the stored image by vendor and product ID; a single `.ota` updates every device of that variant on your Thread network. Publish once, and each matching device picks it up the next time it checks in.
+> 💡 **One image updates every matching device.** The provider offers the stored image by vendor and product ID; a single `.ota` updates every device with that product ID on your Thread network. Publish once, and each matching device picks it up the next time it checks in.
 
 ---
 
@@ -87,9 +88,22 @@ If you build from source and have a UART adapter on the device, `idf.py flash` u
 
 ---
 
+## Upgrading from the Mini Light Switch 1.0.0
+
+Firmware 2.0.0 keeps Matter product ID `0x8006`, the one the Shelly 1 Mini Gen4 Light Switch 1.0.0 used, so a device on that release updates to it over [Matter OTA through Home Assistant](#matter-ota-through-home-assistant) like any other update. Commissioning, Thread credentials, and bindings are kept. The update removes the old contact sensor endpoint and adds the Generic Switch on endpoint 4; if Home Assistant does not show the new button events afterward, use **Re-interview device** on the device page.
+
+The SW input now expects a momentary push button. A toggle switch wired to it no longer behaves as it did on the Light Switch release: switching it on reads as a held button (InitialPress, then LongPress) and switching it off as LongRelease, so it never produces the single press that sends the bound Toggle. Replace it with a push button. See [Wall button](../README.md#wall-button).
+
+Devices on other builds cannot update to this firmware over Matter OTA, because the product ID does not match:
+
+- **Shelly 1 Mini Gen4 Outlet** (product ID `0x8005`): reflash over [UART](FLASHING.md#flash-with-usb-uart) and re-commission.
+- **Shelly 1 Gen4**, any release: this firmware does not support it. Stay on its last release from the [releases page](../../../releases).
+
+---
+
 ## Building the OTA image
 
-`scripts/make-matter-ota.py` wraps a variant's built application as a Matter `.ota`, reading the vendor and product ID from the build's `sdkconfig` and the software version from `CHIPProjectConfig.h`; the image always matches the firmware it came from and can only target the device and variant it was built for. See [Building from Source](BUILDING.md#build-the-release-artifacts).
+`scripts/make-matter-ota.py` wraps the built application in `firmware/` as a Matter `.ota`. It reads the vendor and product ID from the build's `sdkconfig`, the version string from the app descriptor in the `.bin`, and the version number from the Matter build arguments, and refuses if the two versions disagree. The image always matches the firmware it came from and can only target devices with the same product ID. See [Building from Source](BUILDING.md#build-the-release-artifacts).
 
 ---
 

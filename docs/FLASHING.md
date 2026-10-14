@@ -56,7 +56,7 @@ The fastest way to install this firmware is the Shelly web UI, over your network
 
 > **The device must be in its normal WiFi mode**, reachable on your WiFi network, and running recent stock firmware (verified on 1.7.0, 1.7.5, and 2.0.0).
 
-1. Download the web UI package for your device and variant, `automatous-io-{hardware}-{variant}-vX.Y.Z-ota.zip`, from the [latest release](../../../releases/latest). This is the `.zip`, not the `.bin`.
+1. Download the web UI package, `automatous-io-shelly-1-mini-gen4-vX.Y.Z-ota.zip`, from the [latest release](../../../releases/latest). This is the `.zip`, not the `.bin`.
 2. Open the Shelly's web UI in a browser at its IP address on your network.
 3. In the device's firmware settings, choose to install firmware from a file and select the `.zip` you downloaded.
 4. Confirm the update. The device flashes the new firmware and reboots into BLE commissioning mode, and the LED will rapidly blink. If it does not reboot automatically, remove and reapply power. 
@@ -162,7 +162,7 @@ ESPConnect is a browser-based ESP32 flashing tool built on Web Serial. No instal
 4. Check **Erase entire flash before writing**.
 5. Click **Flash** and wait for the operation to complete (1–2 minutes). ESPConnect shows a progress bar and a success message when done.
 
-> **Re-flashing erases commissioning.** Flashing the merged binary with "Erase entire flash before writing" wipes the whole flash, including stored Matter commissioning. A first flash over stock firmware has nothing to lose, but a device that was already commissioned, or one you are switching to a different variant, will need to be re-added to your ecosystems afterward. To update without re-pairing, the device takes [updates](UPDATING.md) through Home Assistant with Matter OTA, or you can use the ESP-IDF CLI flash path in [Building from Source](BUILDING.md#flash-your-build).
+> **Re-flashing erases commissioning.** Flashing the merged binary with "Erase entire flash before writing" wipes the whole flash, including stored Matter commissioning. A first flash over stock firmware has nothing to lose, but a device that was already commissioned, or one you are moving from a build with a different product ID, will need to be re-added to your ecosystems afterward. To update without re-pairing, the device takes [updates](UPDATING.md) through Home Assistant with Matter OTA, or you can use the ESP-IDF CLI flash path in [Building from Source](BUILDING.md#flash-your-build).
 
 ### 4. Boot the new firmware
 
@@ -248,7 +248,7 @@ esptool.py --chip esp32c6 --port <PORT> --baud 115200 erase_flash
 
 ```bash
 esptool.py --chip esp32c6 --port <PORT> --baud 115200 \
-  write_flash 0x0 automatous-io-shelly-1-gen4-light-<VERSION>.bin
+  write_flash 0x0 automatous-io-shelly-1-mini-gen4-<VERSION>.bin
 ```
 
 **Restore the original firmware:**

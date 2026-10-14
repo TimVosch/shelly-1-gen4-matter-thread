@@ -15,7 +15,7 @@ disclosure.
 ## How issues are handled
 
 Fixes and disclosure happen in the open: a public issue, a pull request, and a
-note in CHANGELOG.md and the release notes for the affected variant. Severity is
+note in CHANGELOG.md and the release notes for the affected firmware. Severity is
 assessed by the maintainer. A formal advisory or CVE is reserved for
 vulnerabilities that are remotely exploitable or expose credentials or keys.
 Reliability and fail-safe bugs are fixed and documented as normal issues, not
@@ -23,4 +23,5 @@ advisories.
 
 ## Supported versions
 
-The latest released version of each variant receives fixes. Older versions do not.
+The latest released version of the firmware receives fixes. Older versions, and
+the earlier per-variant releases that are no longer built, do not.
