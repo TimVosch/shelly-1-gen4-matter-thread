@@ -49,7 +49,7 @@ Matter runs over either Thread or WiFi. This firmware chooses Thread for several
 - Reduced WiFi burden. Every Matter over Thread device is one fewer device on your WiFi.
 - Power consumption. Thread can run with much lower power than WiFi, but only as a Sleepy End Device. This firmware runs as a Thread Router, which trades sleep-mode savings for mesh extension. See [Power Consumption](POWER.md) for measured numbers and the rationale.
 
-This project began because reliable smart home devices were needed in a Sprinter van where WiFi is not always available. Battery and solar capacity can be limiting in van life, which is why a Sleepy End Device variant may join the roadmap later. The current variants prioritize Thread mesh extension, which serves a broader audience. If you are an offgrid, smart home, or Thread-curious tinkerer, you might find this useful too.
+This project began because reliable smart home devices were needed in a Sprinter van where WiFi is not always available. Battery and solar capacity can be limiting in van life, which is why a Sleepy End Device build may join the roadmap later. The current firmware prioritizes Thread mesh extension, which serves a broader audience. If you are an offgrid, smart home, or Thread-curious tinkerer, you might find this useful too.
 
 ---
 

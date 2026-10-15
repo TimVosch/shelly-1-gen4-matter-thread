@@ -41,27 +41,27 @@ ESP-Matter is used as a cloned repository rather than a component from the regis
 
 connectedhomeip is a submodule of esp-matter, so checking out the esp-matter commit and updating its submodules pulls the matching connectedhomeip commit automatically — it is not pinned separately. It lives in Espressif's connectedhomeip fork, not the upstream CSA repository, so those commits will not resolve there.
 
-The Dockerfile pins the toolchain. The `dependencies.lock` in each variant directory pins the components the build pulls from the registry. Between them every input is pinned, so rebuilding a commit gives you the binaries that commit produced.
+The Dockerfile pins the toolchain. The `dependencies.lock` in `firmware/` pins the components the build pulls from the registry. Between them every input is pinned, so rebuilding a commit gives you the binaries that commit produced.
 
 ---
 
 ## Repository structure
 
-The repository organizes firmware by product and variant:
+The firmware is a single ESP-IDF project:
 
 ```
-source/
-├── shelly-1-gen4/
-│   ├── light/           # Matter On/Off Light, latching relay (released)
-│   ├── opener/          # Matter On/Off Plug-in Unit + Contact Sensor, momentary pulse (released)
-│   ├── outlet/          # Matter On/Off Plug-in Unit, latching relay, SW kept as a wall toggle (released)
-│   └── light-switch/    # Matter On/Off Light Switch, detached relay + SW input bound to other Matter devices (released)
-└── shelly-1-mini-gen4/
-    ├── outlet/          # Matter On/Off Plug-in Unit, latching relay (released)
-    └── light-switch/    # Matter On/Off Light Switch, detached relay + SW input bound to other Matter devices (released)
+firmware/
+├── CMakeLists.txt       # project name (shelly-1-mini-gen4) and PROJECT_VER, the one place the version is set
+├── sdkconfig.defaults   # target (esp32c6), Thread, Matter, and every other setting the build needs
+├── partitions.csv       # stock-aligned partition table with A/B app slots
+├── dependencies.lock    # pinned registry components
+└── main/
+    ├── board.h          # GPIO assignments for the Shelly 1 Mini Gen4
+    ├── app_main.cpp     # Matter node and endpoint composition
+    └── ...              # relay, button, wall switch, binding, thermal, and status LED modules
 ```
 
-Each variant is a self-contained ESP-IDF project. Build commands run from inside the variant directory. The examples below build the Shelly 1 Gen4 `light` variant; to build a different one, substitute its hardware and variant directories in the `cd` command.
+Build commands run from inside `firmware/`. It targets the Shelly 1 Mini Gen4 only for now; every pin it uses is defined in `main/board.h`, so another Gen4 board can be added as another board header later.
 
 ---
 
@@ -90,13 +90,12 @@ docker build -t automatous-io/shelly-gen4-builder:idf-v5.5.2-matter-2cb668c9 .de
 docker run --rm -it \
   -v "$PWD":/workspaces/shelly-1-gen4-matter-thread \
   -w /workspaces/shelly-1-gen4-matter-thread \
-  -e SDKCONFIG_DEFAULTS=sdkconfig.defaults.c6_thread_shelly \
   automatous-io/shelly-gen4-builder:idf-v5.5.2-matter-2cb668c9 bash
 ```
 
 The first build takes roughly 20–25 minutes and produces an image of about 18 GB. It compiles the Matter SDK's build environment. After that it starts in seconds, and it only rebuilds if the Dockerfile changes.
 
-Both SDKs are exported in every shell in the container, and `SDKCONFIG_DEFAULTS` is already set. Note that esp-matter's CMake overrides that environment variable during a build, so [Build](#build) still passes the defaults file with `-D`. To confirm which revisions an image holds:
+Both SDKs are exported in every shell in the container. To confirm which revisions an image holds:
 
 ```bash
 cat /opt/esp/esp-idf-version.txt          # v5.5.2
@@ -108,30 +107,30 @@ cat /opt/esp/connectedhomeip-commit.txt   # 8f943388...
 
 ## Build
 
-A variant has to be configured once before it can be built. From the repository root inside the container:
+From the repository root inside the container:
 
 ```bash
-cd source/shelly-1-gen4/light
-idf.py -DSDKCONFIG_DEFAULTS=sdkconfig.defaults.c6_thread_shelly set-target esp32c6
+cd firmware
 idf.py build
 ```
 
-After that first `set-target`, the variant's `build/` directory records both the target and the defaults file, so every later build in that variant is just:
+To build without opening a shell, export both SDKs yourself, since a non-interactive `bash -c` skips the image's `bash.bashrc`:
 
 ```bash
-idf.py build
+docker run --rm \
+  -v "$PWD":/workspaces/shelly-1-gen4-matter-thread \
+  -w /workspaces/shelly-1-gen4-matter-thread/firmware \
+  automatous-io/shelly-gen4-builder:idf-v5.5.2-matter-2cb668c9 \
+  bash -c 'export IDF_PATH_FORCE=1; . $IDF_PATH/export.sh && . $ESP_MATTER_PATH/export.sh && idf.py build'
 ```
 
-Repeat the two-command form for each variant you build, and again after deleting a variant's `build/` directory or `sdkconfig`.
+The container runs as root, so `build/` and `sdkconfig` end up owned by root on the host; `chown` them back if that gets in the way.
 
-Both flags are needed, for different reasons:
+No `set-target` step or extra flags are needed. The target (`esp32c6`) and every Thread, Matter, flash, and partition setting come from `firmware/sdkconfig.defaults`, which ESP-IDF reads on the first build to generate `sdkconfig`.
 
-- `-DSDKCONFIG_DEFAULTS` supplies the C6 and Thread settings. The container exports `SDKCONFIG_DEFAULTS` too, but esp-matter's `cmake_common/components_include.cmake` overwrites the CMake variable of that name, and ESP-IDF only reads the environment when that variable is empty. Passing `-D` puts the file where esp-matter won't drop it.
-- `set-target esp32c6` sets `IDF_TARGET` on the CMake command line. Each variant's `CMakeLists.txt` picks the device HAL before `project.cmake` runs, and an empty `IDF_TARGET` there is treated as `esp32`. Without it a clean checkout picks the esp32 HAL and stops with `please set esp32 as the IDF_TARGET`.
+The build produces individual `.bin` files in the `build/` directory. The application image is named after the project, `build/shelly-1-mini-gen4.bin`. The `Project build complete` line at the end of the build prints its exact path.
 
-The build produces individual `.bin` files in the `build/` directory. The application image is named after the variant; the light build produces `build/light.bin` and the opener build produces `build/opener.bin` and so on. The `Project build complete` line at the end of the build prints its exact path.
-
-A `build/` directory is tied to the environment that created it, because CMake caches absolute toolchain paths. If you switch between containers, delete `build/` and `sdkconfig` first.
+A `build/` directory is tied to the environment that created it, because CMake caches absolute toolchain paths. If you switch between containers, delete `build/` and `sdkconfig` first. Delete `sdkconfig` too after changing `sdkconfig.defaults`, since ESP-IDF only reads the defaults when it generates a new `sdkconfig`.
 
 ---
 
@@ -141,41 +140,45 @@ Each install and update path needs a different packaged artifact, and all three 
 
 | Artifact | Path it serves | Built with |
 |---|---|---|
-| `automatous-io-{hardware}-{variant}-vX.Y.Z.bin` | UART / ESPConnect full install | `idf.py merge-bin` |
-| `automatous-io-{hardware}-{variant}-vX.Y.Z-ota.zip` | Shelly web UI install | `scripts/make-webui-ota-zip.py` |
-| `automatous-io-{hardware}-{variant}-vX.Y.Z.ota` | Matter OTA update | `scripts/make-matter-ota.py` |
+| `automatous-io-shelly-1-mini-gen4-vX.Y.Z.bin` | UART / ESPConnect full install | `idf.py merge-bin` |
+| `automatous-io-shelly-1-mini-gen4-vX.Y.Z-ota.zip` | Shelly web UI install | `scripts/make-webui-ota-zip.py` |
+| `automatous-io-shelly-1-mini-gen4-vX.Y.Z.ota` | Matter OTA update | `scripts/make-matter-ota.py` |
 
-The examples below build the `light` variant; for another, point the script at its directory or substitute its name.
+The `shelly-1-mini-gen4` part is the project name from `project()` in `firmware/CMakeLists.txt`, and `X.Y.Z` is `PROJECT_VER` from the same file. Run `idf.py build` first; the scripts package what is in `firmware/build/`.
+
+### Bump the version
+
+The version is set in one place, `set(PROJECT_VER "X.Y.Z")` in `firmware/CMakeLists.txt`. The Matter software version number that OTA compares, `(major << 16) | (minor << 8) | patch`, is derived from it, and the packaging scripts read both from the build. Change that line and rebuild; nothing else needs editing.
 
 ### Merged binary (UART)
 
-A single `.bin` for flashing at offset `0x0`, matching the released binaries. From the variant directory:
+A single `.bin` for flashing at offset `0x0`, matching the released binaries. From `firmware/`:
 
 ```bash
 idf.py merge-bin
 ```
 
-It reads the flash mode, flash size, and every partition offset from the build's flash arguments and writes `build/merged-binary.bin` in the `/build` directory. Rename it to `automatous-io-{hardware}-{variant}-v{version}.bin`.
+It reads the flash mode, flash size, and every partition offset from the build's flash arguments and writes `build/merged-binary.bin` in the `/build` directory. Rename it to `automatous-io-shelly-1-mini-gen4-vX.Y.Z.bin`.
 
 ### Web UI package
 
-The `.zip` that installs through the Shelly web UI. Run it from the repository root pointed at a variant directory:
+The `.zip` that installs through the Shelly web UI. Run it from the repository root:
 
 ```bash
-python3 scripts/make-webui-ota-zip.py source/shelly-1-gen4/light
+python3 scripts/make-webui-ota-zip.py
 ```
 
-It reads the variant and version from the build, bundles the bootloader, partition table, otadata, and application with an empty filesystem image, and writes `automatous-io-{hardware}-{variant}-vX.Y.Z-ota.zip` next to the build.
+It reads the project name and version from the build, bundles the bootloader, partition table, otadata, and application with an empty filesystem image, and writes `automatous-io-shelly-1-mini-gen4-vX.Y.Z-ota.zip` into `firmware/`. It defaults to `firmware/`; another project directory can be passed as an argument.
 
 ### Matter OTA image
 
 The `.ota` served to commissioned devices through Home Assistant:
 
 ```bash
-python3 scripts/make-matter-ota.py source/shelly-1-gen4/light
+python3 scripts/make-matter-ota.py
 ```
 
-It calls `ota_image_tool.py` from the connectedhomeip checkout, found via `ESP_MATTER_PATH`. It has to run inside the container. It reads the vendor and product ID from the build's `sdkconfig` and the software version from `CHIPProjectConfig.h`; the image always matches the firmware it came from and can only target the device and variant it was built for. The output is `automatous-io-{hardware}-{variant}-vX.Y.Z.ota`. See [Updating](UPDATING.md) for how to serve it.
+It calls `ota_image_tool.py` from the connectedhomeip checkout, found via `ESP_MATTER_PATH`. It has to run inside the container. It reads the vendor and product ID from the build's `sdkconfig`, the version string from the app descriptor in `build/shelly-1-mini-gen4.bin`, and the version number from the Matter build arguments, and refuses to build the image if the two versions disagree. The image always matches the firmware it came from and can only target devices with the same product ID. The output is `automatous-io-shelly-1-mini-gen4-vX.Y.Z.ota`, written into `firmware/`. See [Updating](UPDATING.md) for how to serve it.
 
 ---
 
@@ -197,7 +200,7 @@ Add the device to `runArgs` in `.devcontainer/devcontainer.json`, adjusting the 
 "runArgs": ["--add-host=host.docker.internal:host-gateway", "--device=/dev/ttyUSB0"],
 ```
 
-Rebuild the container, then from the variant directory:
+Rebuild the container, then from `firmware/`:
 
 ```bash
 idf.py -p /dev/ttyUSB0 flash monitor

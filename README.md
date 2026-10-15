@@ -15,14 +15,14 @@ The first third-party open source Matter over Thread firmware for Shelly Gen4 de
   <img src="docs/images/apple-home-device-info-v1.0.0.png" alt="Shelly 1 Gen4 running this firmware in Apple Home, showing manufacturer, model, and firmware version" width="300">
 </p>
 
-*Shelly 1 Gen4 running the light variant firmware, commissioned to Apple Home. Manufacturer: AUTOMATOUS.IO, Model: Shelly 1 Gen4 MoT Light.*
+*An earlier release (Shelly 1 Gen4 Light v1.0.0), commissioned to Apple Home.*
 
 ---
 
 ## Contents
 
 - [Supported devices](#supported-devices)
-- [Variants](#variants)
+- [Firmware](#firmware)
 - [Quick start](#quick-start)
 - [Features](#features)
 - [Compatibility](#compatibility)
@@ -39,35 +39,46 @@ The first third-party open source Matter over Thread firmware for Shelly Gen4 de
 
 ## Supported devices
 
-Each supported device has its own firmware builds under [`source/`](source/).
+There is one firmware, in [`firmware/`](firmware/), and it targets one device for now.
 
-| Device | Variants | Status |
+| Device | Firmware | Status |
 |---|---|---|
-| Shelly 1 Gen4 | Light, Outlet, Opener, Light Switch | Released |
-| Shelly 1 Mini Gen4 | Outlet, Light Switch | Released |
+| Shelly 1 Mini Gen4 | v2.0.0 | Running on hardware, partly verified |
 
-More Gen4 devices are planned. See the [Roadmap](docs/ROADMAP.md).
+Verified on one installed Shelly 1 Mini Gen4: the Matter OTA update from Mini Light Switch 1.0.0, the relay from Home Assistant and the onboard button, and single, double and long presses on the wall button. Not yet verified on hardware: the binding Toggle, the 70°C thermal clear point, and whether the [bootloader updater](bootloader-updater/README.md) actually installs the rollback bootloader (it ran and returned to the previous firmware, but its result is only visible over UART).
+
+Shelly 1 Gen4 support is out of this tree for now. Its earlier releases (Light, Outlet, Opener, Light Switch), and the Shelly 1 Mini Gen4 Outlet, stay on the [releases page](../../releases) and in git history, but they are no longer built or updated. The plan is to bring the Shelly 1 Gen4 back, and add the 1PM and 2PM, as further board targets of the same firmware. See the [Roadmap](docs/ROADMAP.md).
 
 ---
 
-## Variants
+## Firmware
 
-Matter device types are declared by the firmware at flash time and cannot be changed in the smart home app after commissioning, so each behavior is a separate firmware build.
+Earlier releases shipped a separate build for each behavior (Light, Outlet, Opener, Light Switch), because Matter device types are fixed at flash time. Version 2.0.0 replaces them with one build that exposes the relay, a binding switch, a temperature sensor, and a push button side by side.
 
-| Variant | Matter device type | Relay behavior | Good for |
-|---|---|---|---|
-| Light | On/Off Light *(shown as only a light)* | Latching. Holds on or off until changed. | Lights and lighting circuits. |
-| Outlet | On/Off Plug-in Unit *(shown as an outlet, switch, fan, light)* | Latching. Holds on or off until changed. | Outlets, plug-in appliances, fans, heaters, pumps, lights, and other set-and-hold loads. |
-| Opener | On/Off Plug-in Unit + Contact Sensor | Momentary pulse, roughly 500ms. | Garage door openers, gates, doorbells, and other pulse-activated devices. |
-| Light Switch | On/Off Light + On/Off Light Switch | Latching, but the SW terminal is detached from the relay. | Repurposing the wall switch to control other Matter devices through a binding, while the local relay runs independently. |
+| Endpoint | Matter device type | What it does |
+|---|---|---|
+| 1 | On/Off Light | Drives the relay. Controlled by your smart home app, by voice, and by the onboard button. |
+| 2 | On/Off Light Switch | Sends a Toggle to whatever it is bound to on a single press of the wall button. |
+| 3 | Temperature Sensor | Reports the ESP32-C6 die temperature. |
+| 4 | Generic Switch | Reports single press, double press, and long press of the wall button. |
 
-All four variants are available for the Shelly 1 Gen4. The Shelly 1 Mini Gen4 ships the Outlet and Light Switch variants. Every variant on both devices includes a temperature sensor endpoint.
+### Relay
 
-Light and Outlet are electrically identical. Both latch and hold state, and both keep the SW terminal as a physical wall toggle. They differ only in the Matter device type they report, which sets how your smart home app names, displays, and voice-controls the device, as a light or as an outlet. Some apps let you recategorize after pairing. Others fix the icon, label, and automations to the reported type, which cannot change after commissioning. Pick the variant that matches the load you wired, so the controls read the way you expect.
+The relay latches on or off until changed. Only your controllers (Home Assistant, Apple Home, and so on) and the onboard button switch it; a press of the onboard button toggles it, and holding it for 10 seconds factory resets the device. Power-on behavior defaults to off and is configurable through the Matter StartUpOnOff attribute (off, on, toggle, or restore last state). Home Assistant users can write this attribute directly. Apple Home and Google Home have limited Matter attribute editing today, so the firmware default applies there until those apps improve.
 
-The Light variant is the flagship release and the one pictured above. Power-on behavior on the latching variants (Light and Outlet) defaults to off and is configurable through the Matter StartUpOnOff attribute (off, on, toggle, or restore last state). Home Assistant users can write this attribute directly. Apple Home and Google Home have limited Matter attribute editing today, so the firmware default applies there until those apps improve.
+### Wall button
 
-The Light Switch variant, contributed by [Tomas McGuinness](https://github.com/tomasmcguinness), decouples the SW terminal from the local relay. Flipping the wall switch no longer toggles the wired load. Instead it sends a Matter Toggle command through a second On/Off Light Switch endpoint, which you bind to other Matter devices such as bulbs, groups, or scenes. The local relay stays on the On/Off Light endpoint and is controlled by your smart home app, by voice, and by the onboard button. Out of the box the wall switch does nothing until you configure a binding. To keep local control as well, bind the switch endpoint back to the device's own light endpoint. You can write the binding with chip-tool. Home Assistant users can use the [Matter Binding Helper](https://github.com/cedricziel/ha-matter-binding-helper) by Cedric Ziel, which makes it straightforward.
+The SW terminal takes a momentary push button, not a toggle switch, and it is detached from the relay: pressing it does not switch the wired load. It works like a one-button IKEA BILRESA remote. Each press is reported on the Generic Switch endpoint, where your controller can use it in automations, and a single press also drives the binding on endpoint 2.
+
+| Action | Events on endpoint 4 | Endpoint 2 binding |
+|---|---|---|
+| Single press | InitialPress, ShortRelease, MultiPressComplete (1) | Sends Toggle |
+| Double press | InitialPress, ShortRelease, InitialPress, MultiPressOngoing (2), ShortRelease, MultiPressComplete (2) | Nothing |
+| Long press | InitialPress, LongPress after 600 ms held, LongRelease on release | Nothing |
+
+A single press is reported only once the 400 ms multi-press window has passed without a second press, so both the MultiPressComplete event and the bound Toggle go out about 400 ms after you let go. Presses are debounced for 30 ms. In Home Assistant the button appears as an event entity with the event types `multi_press_1`, `multi_press_2`, `long_press`, and `long_release` (`initial_press` and `short_release` may also appear).
+
+The binding on endpoint 2, originally contributed by [Tomas McGuinness](https://github.com/tomasmcguinness) as the Light Switch variant, lets the button control other Matter devices, such as a bulb or a group, directly, without a controller in the loop. Out of the box nothing is bound, so a single press does nothing beyond the event. To have the button switch the Shelly's own relay, bind endpoint 2 to the device's own endpoint 1. See [Using the wall button](docs/COMMISSIONING.md#using-the-wall-button) for how to set up a binding.
 
 > ⚠️ This firmware uses ESP-Matter SDK test credentials and is not VID/PID certified. It is functional for personal use and not suitable for resale as a certified Matter product. See [Certification](docs/CERTIFICATION.md).
 
@@ -77,7 +88,7 @@ The Light Switch variant, contributed by [Tomas McGuinness](https://github.com/t
 
 Flash via the Shelly web UI over your WiFi network, no UART adapter required. This is the fastest way to flash but it cannot create a backup of the stock firmware and should be considered one-way. See [Reversibility](docs/REVERSIBILITY.md).
 
-1. [Download the latest release](../../releases/latest) and grab the web UI package for your [device](#supported-devices) and preferred [variant](#variants).
+1. [Download the latest release](../../releases/latest) and grab the web UI package for the [Shelly 1 Mini Gen4](#supported-devices).
 2. [Install it through the Shelly web UI](docs/FLASHING.md#flash-with-the-shelly-web-ui).
 3. [Commission](docs/COMMISSIONING.md) with your smart home app.
 
@@ -88,9 +99,10 @@ Once it is up and running, [updates are available](docs/UPDATING.md) through Hom
 ## Features
 
 - Shelly web UI install, with no UART adapter required (unless you want [reversibility](docs/REVERSIBILITY.md)).
-- Updates through Home Assistant with Matter OTA.
+- Updates through Home Assistant with Matter OTA, with automatic rollback if an update crashes or never reaches Thread. Devices installed before 2.0.0 get the needed bootloader from the [bootloader updater](bootloader-updater/README.md), no UART required.
 - Physical button toggle on the onboard relay button.
-- External wall switch input on the SW terminal.
+- Wall push button on the SW terminal, exposed as a Matter Generic Switch with single, double, and long press.
+- Matter binding. A single press of the wall button toggles bound Matter devices directly.
 - Configurable power-on behavior through the Matter StartUpOnOff attribute.
 - Status LED indication for BLE advertising, Thread connecting, and Thread connected.
 - Identify support. Blink the LED on command from any Matter controller to locate the device.
@@ -135,7 +147,7 @@ Most of it is in [`docs/`](docs/), with build [`scripts/`](scripts/), the change
 - [Contributing](docs/CONTRIBUTING.md) — reporting bugs and the firmware filename convention
 - [Contributors](docs/CONTRIBUTORS.md) — people who have helped move the project forward
 - [Security policy](SECURITY.md) — reporting a vulnerability and how issues are triaged
-- [Changelog](CHANGELOG.md) — release history by device and variant
+- [Changelog](CHANGELOG.md) — release history by device
 
 ---
 
@@ -147,18 +159,11 @@ shelly-1-gen4-matter-thread/
 ├── LICENSE            Apache 2.0.
 ├── docs/              Documentation and the images it references.
 ├── scripts/           Build scripts that package the release artifacts.
-└── source/
-    ├── shelly-1-gen4/
-    │   ├── light/         Matter On/Off Light, latching relay. Released.
-    │   ├── opener/        Matter On/Off Plug-in Unit + Contact Sensor, momentary pulse. Released.
-    │   ├── outlet/        Matter On/Off Plug-in Unit, latching relay, SW kept as a wall toggle. Released.
-    │   └── light-switch/  Matter On/Off Light Switch, detached relay with the SW input bound to other Matter devices. Released.
-    └── shelly-1-mini-gen4/
-        ├── outlet/        Matter On/Off Plug-in Unit, latching relay. Released.
-        └── light-switch/  Matter On/Off Light Switch, detached relay with the SW input bound to other Matter devices. Released.
+├── firmware/          The ESP-IDF project for the Shelly 1 Mini Gen4. Pins are in main/board.h.
+└── bootloader-updater/ One-shot OTA image that gives older devices the rollback bootloader.
 ```
 
-Each variant directory under `source/` is a self-contained ESP-IDF project. See [Building from Source](docs/BUILDING.md) for what each variant does and how to build it.
+`firmware/` is a self-contained ESP-IDF project. See [Building from Source](docs/BUILDING.md) for how to build it.
 
 ---
 
@@ -212,4 +217,4 @@ Other open source, local-first, Matter over Thread projects from Automatous.
 
 Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Based on the [ESP-Matter](https://github.com/espressif/esp-matter) light example by Espressif Systems, licensed under Apache 2.0. The Opener and Outlet variants' Matter device composition was informed by the esp-matter `on_off_plugin_unit` example, and the Light Switch variant's by the esp-matter `light_switch` example.
+Based on the [ESP-Matter](https://github.com/espressif/esp-matter) light example by Espressif Systems, licensed under Apache 2.0. The binding switch endpoint was informed by the esp-matter `light_switch` example, and the earlier Opener and Outlet releases by the esp-matter `on_off_plugin_unit` example.

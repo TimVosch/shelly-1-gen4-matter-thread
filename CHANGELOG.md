@@ -2,7 +2,38 @@
 
 All notable changes to this firmware are recorded here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-Each firmware variant versions independently, and releases are grouped by device and variant below. Switching a device between variants always requires full reset and re-commission, because each variant is a different Matter device type.
+From 2.0.0 for the Shelly 1 Mini Gen4 there is one firmware per device, with one version line. Releases before that were separate per-variant builds, each versioned independently, and are kept below as history, grouped by device and variant. Moving a device to a build with a different Matter Product ID requires a full reflash and re-commission, because a Matter OTA image only targets its own Product ID.
+
+## Shelly 1 Mini Gen4
+
+### [2.0.0] - 2026-10-14
+
+One firmware for the Shelly 1 Mini Gen4, replacing the per-variant builds. It combines the relay, a binding switch, a temperature sensor, and a push button on the SW terminal. It keeps the Mini Light Switch Product ID (`0x8006`), so devices on Mini Light Switch 1.0.0 update over Matter OTA with commissioning and bindings kept.
+
+Hardware status: verified on one Shelly 1 Mini Gen4 updated over Matter OTA from Mini Light Switch 1.0.0, after running the bootloader updater. The relay, the onboard button, and single, double and long presses work. After **Re-interview device**, Home Assistant shows the new button events but keeps the removed contact sensor as a stale entity, which can be deleted. The binding Toggle, the 70°C thermal clear point, and the bootloader updater's write have not been verified on hardware.
+
+#### Added
+- Generic Switch endpoint (endpoint 4) for a momentary push button on the SW terminal, with the MomentarySwitch, MomentarySwitchRelease, MomentarySwitchLongPress, and MomentarySwitchMultiPress features and MultiPressMax 2. It reports single press (InitialPress, ShortRelease, MultiPressComplete 1), double press (MultiPressComplete 2), and long press (LongPress after 600 ms held, LongRelease on release). Debounce is 30 ms and the multi-press window 400 ms. Home Assistant shows it as an event entity with `multi_press_1`, `multi_press_2`, `long_press`, and `long_release`.
+- All board pins in one header, `firmware/main/board.h`, so further Gen4 boards can be added as additional targets.
+- App rollback for Matter OTA updates. The first boot of an update is kept once the device attaches to Thread. If it resets before that, or has not attached within 10 minutes, the bootloader returns to the previous firmware. Requires the rollback bootloader, which 2.0.0 installs over UART and the web UI carry.
+- `bootloader-updater/`, a one-shot Matter OTA image that installs the rollback bootloader on devices installed before 2.0.0 and then boots back into their existing firmware, without UART. `scripts/make-matter-ota.py` packages it with `--pid` set to the product ID on the device.
+
+#### Changed
+- One ESP-IDF project in `firmware/` replaces the six per-variant projects under `source/`. The project is `shelly-1-mini-gen4` and builds `build/shelly-1-mini-gen4.bin`.
+- The SW terminal now expects a momentary push button and stays detached from the relay. The relay is switched only by controllers and the onboard button.
+- The binding on the On/Off Light Switch endpoint (endpoint 2) sends OnOff Toggle on a single press, once the 400 ms multi-press window has passed, rather than on every toggle switch change. Double and long presses do not send to the binding. Binding support originally contributed by [Tomas McGuinness](https://github.com/tomasmcguinness).
+- Thermal protection now has hysteresis. It still trips at 75°C sustained for 10 seconds, but clears only below 70°C instead of at 75°C, so it no longer clears and re-trips while the die hovers around the trip point.
+- The version is set in one place, `PROJECT_VER` in `firmware/CMakeLists.txt`. The Matter software version number is derived from it, and `CHIPProjectConfig.h` no longer carries a version.
+- `scripts/make-matter-ota.py` reads the version string from the app descriptor in the `.bin` and the version number from the Matter build arguments, and refuses to build an image if they disagree. Both packaging scripts default to `firmware/`.
+- Release files are named `automatous-io-shelly-1-mini-gen4-vX.Y.Z` with `.bin`, `-ota.zip`, and `.ota` suffixes, without a variant.
+- All build settings, including the ESP32-C6 target and Thread, are merged into a single `sdkconfig.defaults`, so a plain `idf.py build` works. `sdkconfig.defaults.c6_thread_shelly`, the `-DSDKCONFIG_DEFAULTS` flag, the `set-target` step, and the dev container's `SDKCONFIG_DEFAULTS` variable are gone.
+
+#### Removed
+- The contact sensor endpoint that mirrored the wall toggle switch position on the Mini Light Switch. The Generic Switch endpoint replaces it.
+- The Shelly 1 Gen4 builds (Light, Outlet, Opener, Light Switch) and the Shelly 1 Mini Gen4 Outlet build are out of the source tree for now. Their released binaries remain on the releases page and in git history. Mini Outlet devices (Product ID `0x8005`) cannot update to this firmware over Matter OTA and need a UART reflash and re-commission.
+
+#### Fixed
+- The button and SW inputs start only after the Matter stack is up, so a press during boot cannot reach an endpoint that does not exist yet.
 
 ## Shelly 1 Gen4, all variants
 

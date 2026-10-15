@@ -29,9 +29,9 @@ __pycache__/
 shelly-*-gen4-stock-*.bin
 
 # Release binaries, zip, ota — these go in GitHub Releases
-automatous-io-shelly-*-gen4-*.bin
-automatous-io-shelly-*-gen4-*.zip
-automatous-io-shelly-*-gen4-*.ota
+automatous-io-*.bin
+automatous-io-*.zip
+automatous-io-*.ota
 
 # IDF component manager
 idf_component_manager.yml

@@ -4,9 +4,9 @@
 
 This project is currently solo-maintained, but it is not solo-built.
 
-The community has moved it forward with code, hardware, testing, and funds. Code means new firmware variants and fixes. Hardware and funds matter because we only ship after running it on the actual device, so a sponsored or donated unit turns a roadmap item into something that can be built and tested.
+The community has moved it forward with code, hardware, testing, and funds. Code means new firmware features and fixes. Hardware and funds matter because we only ship after running it on the actual device, so a sponsored or donated unit turns a roadmap item into something that can be built and tested.
 
-This is not a list of everyone who has supported the project. It records specific contributions: code that ships, a specific unit funded or donated for a variant, and the testing behind it. General support through [Buy Me a Coffee](https://buymeacoffee.com/automatous.io) keeps the project going, even if it is not listed here individually.
+This is not a list of everyone who has supported the project. It records specific contributions: code that ships, a specific unit funded or donated for a device, and the testing behind it. General support through [Buy Me a Coffee](https://buymeacoffee.com/automatous.io) keeps the project going, even if it is not listed here individually.
 
 If your contribution fits that bar and I missed it, open an issue and I will add it.
 

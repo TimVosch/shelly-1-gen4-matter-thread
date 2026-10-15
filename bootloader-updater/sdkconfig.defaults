@@ -1,0 +1,16 @@
+# Plain ESP-IDF app, no Matter. Flash layout must match firmware/ so the app
+# finds the device's partition table.
+CONFIG_IDF_TARGET="esp32c6"
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="../firmware/partitions.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x10000
+
+# Writing flash offset 0 is the whole point.
+CONFIG_SPI_FLASH_DANGEROUS_WRITE_ALLOWED=y
+
+# Must stay off. With it on, switching back to the previous app would mark
+# that app "pending verify"; it never confirms itself, so the new bootloader
+# would roll back into this updater on the next reset, forever.
+# CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE is not set

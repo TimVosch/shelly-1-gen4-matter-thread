@@ -1,4 +1,4 @@
-Shelly 1 Gen4 Matter over Thread Firmware
+Shelly Gen4 Matter over Thread Firmware
 Copyright 2026 AUTOMATOUS.IO
 
 Licensed under the Apache License, Version 2.0. See the LICENSE file.
@@ -7,9 +7,12 @@ This firmware is based on the ESP-Matter examples by Espressif Systems
 (https://github.com/espressif/esp-matter), used under the Apache License,
 Version 2.0:
 
-  - the light example, the basis for the Light variant
-  - the on_off_plugin_unit example, the basis for the Opener and Outlet variants
-  - the light_switch example, the basis for the Light Switch variant
+  - the light example, the basis for the firmware
+  - the light_switch example, the basis for the Matter binding support
+  - the generic_switch example, the reference for the wall button events
+
+Earlier releases also drew on the on_off_plugin_unit example (the Opener and
+Outlet variants).
 
 The compiled firmware is built with the ESP-IDF and ESP-Matter SDKs by Espressif
 Systems and links additional components, including the Matter SDK (connectedhomeip,

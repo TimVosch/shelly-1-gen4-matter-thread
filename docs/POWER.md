@@ -2,14 +2,14 @@
 
 **[README](../README.md)** > **Power Consumption** · [Report an issue](../../../issues/new)
 
-A common assumption is that Matter over Thread devices use significantly less power than Matter over WiFi. That is true for Thread devices running as Sleepy End Devices, but not for always-on devices like the current variants of this firmware. This document explains the measured numbers and the design choice behind them.
+A common assumption is that Matter over Thread devices use significantly less power than Matter over WiFi. That is true for Thread devices running as Sleepy End Devices, but not for always-on devices like the current builds of this firmware. This document explains the measured numbers and the design choice behind them.
 
 ---
 
 ## Contents
 
 - [Measured consumption](#measured-consumption)
-- [Why no power savings on this variant](#why-no-power-savings-on-this-variant)
+- [Why no power savings on this firmware](#why-no-power-savings-on-this-firmware)
 - [When Thread saves real power](#when-thread-saves-real-power)
 
 ---
@@ -27,7 +27,7 @@ The numbers are nearly identical because both radios stay continuously awake. Th
 
 ---
 
-## Why no power savings on this variant
+## Why no power savings on this firmware
 
 This firmware runs the Shelly as a Thread Router in Full Thread Device mode, so it actively participates in routing packets for other Thread devices on your mesh. Router mode requires the radio to stay awake to relay traffic, so the device does not get the sleep-mode power savings that Thread is known for.
 

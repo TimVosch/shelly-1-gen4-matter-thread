@@ -15,31 +15,26 @@
 # limitations under the License.
 #
 """
-Build a Shelly Web UI OTA zip from a Gen4 variant's build output.
+Build a Shelly Web UI OTA zip from the firmware build output.
 
-Point it at a variant directory (defaults to the current one):
+    python3 scripts/make-webui-ota-zip.py            # builds from firmware/
+    python3 scripts/make-webui-ota-zip.py <project>  # any other project directory
 
-    python3 scripts/make-webui-ota-zip.py source/shelly-1-gen4/light
-    python3 scripts/make-webui-ota-zip.py source/shelly-1pm-gen4/outlet
-    python3 scripts/make-webui-ota-zip.py source/shelly-1-mini-gen4/outlet
-
-
-It reads the variant and version from build/project_description.json, pulls the
+It reads the project name and version from build/project_description.json, pulls the
 bootloader, partition table, otadata and app from build/, adds an empty filesystem
-image, and writes automatous-io-<hardware>-<variant>-v<version>-ota.zip, where
-<hardware> is the source/<hardware> directory the variant lives in.
+image, and writes automatous-io-<project>-v<version>-ota.zip. The project name is
+the Shelly hardware it targets (see project() in CMakeLists.txt).
 
 The Web UI OTA refuses a package whose name/compatible don't match the unit's Shelly
-hardware code. That code is looked up from the variant's hardware directory (see the
-HARDWARE table below) and can be overridden with --app-code/--compatible for testing 
-purposes.
+hardware code. That code is looked up from the project name (see the HARDWARE table
+below) and can be overridden with --app-code/--compatible for testing purposes.
 
 Every part in the zip comes from the build; no Shelly binaries are included. The zip
 replaces the stock bootloader with the build's own.
 """
 import argparse, datetime, hashlib, json, os, sys, tempfile, zipfile
 
-# Shelly's internal hardware codes, keyed by the source/<hardware> directory. Only
+# Shelly's internal hardware codes, keyed by project name. Only
 # codes confirmed against real hardware belong here; read an unknown unit's code from
 # its stock Web UI device info before adding it.
 HARDWARE = {
@@ -56,13 +51,16 @@ MANIFEST_VER = "99.0.0"
 # bundled bootloader only when min_version is higher. Set above any stock
 # version.
 BOOT_MIN     = "99.0.0"
-# Must match the variant's partitions.csv.
+# Must match the project's partitions.csv.
 PT_ADDR  = 0x10000
 NVS_SIZE = 0xC000
 FS_SIZE  = 0xE0000
 # No flash encryption on these units. Left true because that
 # is the correct value if a unit ever ships with encryption enabled.
 ENCRYPT  = True
+
+
+DEFAULT_PROJECT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "firmware")
 
 
 def digest(path):
@@ -73,40 +71,39 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("variant_dir", nargs="?", default=".",
-                        help="variant directory (default: current)")
+    parser.add_argument("project_dir", nargs="?", default=DEFAULT_PROJECT,
+                        help="project directory (default: firmware/)")
     parser.add_argument("--app-code", help="Shelly code for the manifest 'name' (overrides the HARDWARE table)")
     parser.add_argument("--compatible", help="Shelly string for the manifest 'compatible' (overrides the HARDWARE table)")
     args = parser.parse_args()
 
-    variant_dir = os.path.abspath(args.variant_dir)
-    hardware = os.path.basename(os.path.dirname(variant_dir))
-    codes = HARDWARE.get(hardware, {})
+    project_dir = os.path.abspath(args.project_dir)
+    build = os.path.join(project_dir, "build")
+    desc_path = os.path.join(build, "project_description.json")
+    if not os.path.isfile(desc_path):
+        sys.exit(f"no build found at {build} — run `idf.py build` in {project_dir} first")
+    desc = json.load(open(desc_path))
+    project, version = desc["project_name"], desc["project_version"]
+
+    codes = HARDWARE.get(project, {})
     app_code = args.app_code or codes.get("app_code")
     compatible = args.compatible or codes.get("compatible")
     if not app_code or not compatible:
-        sys.exit(f"unknown hardware '{hardware}': add it to HARDWARE or pass "
+        sys.exit(f"unknown hardware '{project}': add it to HARDWARE or pass "
                  f"--app-code/--compatible (read them from the unit's stock Web UI)")
-
-    build = os.path.join(variant_dir, "build")
-    desc_path = os.path.join(build, "project_description.json")
-    if not os.path.isfile(desc_path):
-        sys.exit(f"no build found at {build} — run `idf.py build` in {variant_dir} first")
-    desc = json.load(open(desc_path))
-    variant, version = desc["project_name"], desc["project_version"]
 
     src = {
         "bootloader.bin":      os.path.join(build, "bootloader", "bootloader.bin"),
         "partition-table.bin": os.path.join(build, "partition_table", "partition-table.bin"),
         "otadata.bin":         os.path.join(build, "ota_data_initial.bin"),
-        "app.bin":             os.path.join(build, f"{variant}.bin"),
+        "app.bin":             os.path.join(build, f"{project}.bin"),
     }
     missing = [p for p in src.values() if not os.path.isfile(p)]
     if missing:
         sys.exit("missing build outputs:\n  " + "\n  ".join(missing))
 
-    stem = f"automatous-io-{hardware}-{variant}-v{version}-ota"
-    zip_out = os.path.join(variant_dir, f"{stem}.zip")
+    stem = f"automatous-io-{project}-v{version}-ota"
+    zip_out = os.path.join(project_dir, f"{stem}.zip")
 
     with tempfile.TemporaryDirectory() as tmp:
         fs_img = os.path.join(tmp, "fs.img")
@@ -147,7 +144,7 @@ def main():
                 z.write(src_for[member], arcname=member)
 
     print(f"Created {os.path.basename(zip_out)} ({os.path.getsize(zip_out) / 1024 / 1024:.1f} MB)")
-    print(f"  {variant} v{version}, manifest name={app_code}, version={MANIFEST_VER}")
+    print(f"  {project} v{version}, manifest name={app_code}, version={MANIFEST_VER}")
     print(f"  boot min_version={BOOT_MIN}: this zip replaces the stock bootloader")
 
 

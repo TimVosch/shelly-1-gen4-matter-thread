@@ -15,28 +15,35 @@
 # limitations under the License.
 #
 """
-Build a Matter OTA image (.ota) from a Gen4 variant's build output.
+Build a Matter OTA image (.ota) from the firmware build output.
 
-Point it at a variant directory (defaults to the current one):
+    python3 scripts/make-matter-ota.py            # builds from firmware/
+    python3 scripts/make-matter-ota.py <project>  # any other project directory
 
-    python3 scripts/make-matter-ota.py source/shelly-1-gen4/opener
-    python3 scripts/make-matter-ota.py source/shelly-1pm-gen4/outlet
-    python3 scripts/make-matter-ota.py source/shelly-1-mini-gen4/outlet
+    # The bootloader updater has no Matter settings of its own: give it the
+    # product ID of the firmware currently on the device.
+    python3 scripts/make-matter-ota.py bootloader-updater --pid 0x8006
 
-Every field that the device matches against is read from the build:
+Everything the device matches against is read from the build, so the header
+can never claim something the payload does not carry:
 
-  - vendor / product ID from the variant's sdkconfig (CONFIG_DEVICE_VENDOR_ID /
-    CONFIG_DEVICE_PRODUCT_ID); an opener build can never get an outlet's PID.
-    Matter OTA only ever offers it to the variant it was built for.
-  - software version (number + string) from main/CHIPProjectConfig.h
-    (CHIP_DEVICE_CONFIG_DEVICE_SOFTWARE_VERSION[_STRING]). The script refuses
-    to package a build that predates the header (version string not compiled
-    into the .bin). The .ota header cannot claim a version its payload
-    does not carry.
+  - vendor / product ID from the project's sdkconfig (CONFIG_DEVICE_VENDOR_ID /
+    CONFIG_DEVICE_PRODUCT_ID). The OTA provider only offers the image to
+    devices with the same VID/PID.
+  - software version string from the app descriptor inside the .bin, which
+    is what the device reports as SoftwareVersionString.
+  - software version number from the Matter stack's build arguments
+    (chip_config_software_version_number), which is what the device reports
+    as SoftwareVersion. After an update the device compares this number with
+    the one in the .ota header and reports the update as failed if they differ.
+    A project without the Matter stack (the bootloader updater) has no such
+    number, so it is derived from the version string.
 
-It wraps build/<variant>.bin with the upstream Matter ota_image_tool.py and writes
-automatous-io-<hardware>-<variant>-v<version>.ota next to the build, where <hardware>
-is the source/<hardware> directory the variant lives in.
+Both come from PROJECT_VER in the project's CMakeLists.txt. The script also
+checks that the number matches the string, (major << 16) | (minor << 8) | patch.
+
+It wraps build/<project>.bin with the upstream Matter ota_image_tool.py and
+writes automatous-io-<project>-v<version>.ota next to the build.
 
 Run it in the same esp-matter environment you build in. ota_image_tool.py is
 located in the connectedhomeip checkout via $ESP_MATTER_PATH (or set $OTA_IMAGE_TOOL
@@ -44,21 +51,44 @@ to its path). A copy under scripts/ will NOT run on its own: ota_image_tool.py
 imports matter.tlv from a sibling directory that only exists inside the esp-matter
 tree, so it has to run from there.
 """
-import json, os, re, subprocess, sys
+import argparse, glob, json, os, re, struct, subprocess, sys
+
+DEFAULT_PROJECT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "firmware")
+
+# esp_app_desc_t sits right after the image header (24 bytes) and the first
+# segment header (8 bytes); its version field is 16 bytes in.
+APP_DESC_OFFSET = 32
+APP_DESC_MAGIC = 0xABCD5432
 
 
-def sdkconfig_int(sdkconfig, key):
+def sdkconfig_int(sdkconfig, key, override, default=None):
+    if override is not None:
+        return int(override, 0)
     m = re.search(rf"^{re.escape(key)}=(.+)$", open(sdkconfig).read(), re.M)
-    if not m:
-        sys.exit(f"{key} not set in {sdkconfig} — run `idf.py build` for this variant first")
-    return int(m.group(1).strip(), 0)
+    if m:
+        return int(m.group(1).strip(), 0)
+    if default is not None:
+        return default
+    sys.exit(f"{key} not set in {sdkconfig} — run `idf.py build` first, or pass it explicitly")
 
 
-def define(header, key):
-    m = re.search(rf"^#define\s+{re.escape(key)}\s+(.+)$", open(header).read(), re.M)
-    if not m:
-        sys.exit(f"{key} not found in {header}")
-    return m.group(1).strip()
+def app_version(app_bin):
+    with open(app_bin, "rb") as f:
+        f.seek(APP_DESC_OFFSET)
+        desc = f.read(48)
+    magic = struct.unpack_from("<I", desc)[0]
+    if magic != APP_DESC_MAGIC:
+        sys.exit(f"{app_bin} has no ESP-IDF app descriptor (magic 0x{magic:08X})")
+    return desc[16:48].split(b"\0", 1)[0].decode()
+
+
+def chip_version_number(build):
+    """The SoftwareVersion the Matter stack was built with, or None without one."""
+    for args in glob.glob(os.path.join(build, "**", "args.gn.in"), recursive=True):
+        m = re.search(r"^chip_config_software_version_number\s*=\s*(\d+)", open(args).read(), re.M)
+        if m:
+            return int(m.group(1))
+    return None
 
 
 def find_ota_image_tool():
@@ -76,35 +106,47 @@ def find_ota_image_tool():
 
 
 def main():
-    variant_dir = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else ".")
-    hardware = os.path.basename(os.path.dirname(variant_dir))
-    build = os.path.join(variant_dir, "build")
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("project_dir", nargs="?", default=DEFAULT_PROJECT,
+                        help="project directory (default: firmware/)")
+    parser.add_argument("--vid", help="vendor ID, if not in the project's sdkconfig (default 0xFFF1)")
+    parser.add_argument("--pid", help="product ID, if not in the project's sdkconfig")
+    args = parser.parse_args()
+
+    project_dir = os.path.abspath(args.project_dir)
+    build = os.path.join(project_dir, "build")
     desc = os.path.join(build, "project_description.json")
     if not os.path.isfile(desc):
-        sys.exit(f"no build found at {build} — run `idf.py build` in {variant_dir} first")
-    variant = json.load(open(desc))["project_name"]
+        sys.exit(f"no build found at {build} — run `idf.py build` in {project_dir} first")
+    project = json.load(open(desc))["project_name"]
 
-    sdkconfig = os.path.join(variant_dir, "sdkconfig")
-    header = os.path.join(variant_dir, "main", "CHIPProjectConfig.h")
-    app_bin = os.path.join(build, f"{variant}.bin")
-    for p in (sdkconfig, header, app_bin):
+    sdkconfig = os.path.join(project_dir, "sdkconfig")
+    app_bin = os.path.join(build, f"{project}.bin")
+    for p in (sdkconfig, app_bin):
         if not os.path.isfile(p):
             sys.exit(f"missing build output: {p}")
 
-    vid = sdkconfig_int(sdkconfig, "CONFIG_DEVICE_VENDOR_ID")
-    pid = sdkconfig_int(sdkconfig, "CONFIG_DEVICE_PRODUCT_ID")
-    version = int(define(header, "CHIP_DEVICE_CONFIG_DEVICE_SOFTWARE_VERSION").split()[0], 0)
-    version_str = define(header, "CHIP_DEVICE_CONFIG_DEVICE_SOFTWARE_VERSION_STRING").split('"')[1]
+    # 0xFFF1 is the Matter test vendor ID every build here uses.
+    vid = sdkconfig_int(sdkconfig, "CONFIG_DEVICE_VENDOR_ID", args.vid, default=0xFFF1)
+    pid = sdkconfig_int(sdkconfig, "CONFIG_DEVICE_PRODUCT_ID", args.pid)
+    version_str = app_version(app_bin)
 
-    # The version above is read from source, but the payload comes from
-    # build/. A build that predates a version bump would produce an .ota
-    # whose header claims a version its payload does not carry. The device
-    # flashes it, reboots, reports the old version, and the controller
-    # marks the update failed.
-    if version_str.encode() not in open(app_bin, "rb").read():
-        sys.exit(f"version {version_str} not found in {app_bin} — rebuild before packaging")
+    m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version_str)
+    if not m:
+        sys.exit(f"version '{version_str}' is not MAJOR.MINOR.PATCH")
+    major, minor, patch = (int(x) for x in m.groups())
+    expected = (major << 16) | (minor << 8) | patch
+    version = chip_version_number(build)
+    if version is None:
+        print(f"No Matter stack in {project}: version number derived from {version_str}")
+        version = expected
+    elif version != expected:
+        sys.exit(f"version number {version} does not match version {version_str} — rebuild")
 
-    out = os.path.join(variant_dir, f"automatous-io-{hardware}-{variant}-v{version_str}.ota")
+    # An explicit --pid means the same build may be packaged for several
+    # product IDs, so the ID goes in the name to keep them apart.
+    pid_tag = f"-pid{pid:04x}" if args.pid else ""
+    out = os.path.join(project_dir, f"automatous-io-{project}-v{version_str}{pid_tag}.ota")
 
     cmd = [sys.executable, find_ota_image_tool(), "create",
            "-v", f"0x{vid:04X}", "-p", f"0x{pid:04X}",
@@ -113,7 +155,7 @@ def main():
     subprocess.run(cmd, check=True)
 
     print(f"Created {os.path.basename(out)} ({os.path.getsize(out) / 1024 / 1024:.1f} MB)")
-    print(f"  {variant}  VID 0x{vid:04X}  PID 0x{pid:04X}  version {version} ({version_str})")
+    print(f"  {project}  VID 0x{vid:04X}  PID 0x{pid:04X}  version {version} ({version_str})")
 
 
 if __name__ == "__main__":

@@ -13,14 +13,13 @@
   // See the License for the specific language governing permissions and
   // limitations under the License.
 
-  "name": "Shelly 1 Gen4 — release toolchain (ESP-IDF v5.5.2 · esp-matter 2cb668c9)",
+  "name": "Shelly Gen4 — release toolchain (ESP-IDF v5.5.2 · esp-matter 2cb668c9)",
   "build": { "dockerfile": "Dockerfile" },
 
   "workspaceFolder": "/workspaces/shelly-1-gen4-matter-thread",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/shelly-1-gen4-matter-thread,type=bind",
 
   "containerEnv": {
-    "SDKCONFIG_DEFAULTS": "sdkconfig.defaults.c6_thread_shelly",
     "NINJA_JOBS": "8"
   },
 
@@ -49,7 +48,7 @@
       ],
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
-        "C_Cpp.default.compileCommands": "${workspaceFolder}/source/shelly-1-gen4/light/build/compile_commands.json",
+        "C_Cpp.default.compileCommands": "${workspaceFolder}/firmware/build/compile_commands.json",
         "files.associations": { "*.defaults": "properties" },
         "files.watcherExclude": { "**/build/**": true },
         "search.exclude": { "**/build/**": true },
