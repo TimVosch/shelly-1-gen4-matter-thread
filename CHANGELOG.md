@@ -10,6 +10,8 @@ From 2.0.0 for the Shelly 1 Mini Gen4 there is one firmware per device, with one
 
 One firmware for the Shelly 1 Mini Gen4, replacing the per-variant builds. It combines the relay, a binding switch, a temperature sensor, and a push button on the SW terminal. It keeps the Mini Light Switch Product ID (`0x8006`), so devices on Mini Light Switch 1.0.0 update over Matter OTA with commissioning and bindings kept.
 
+Hardware status: verified on one Shelly 1 Mini Gen4 updated over Matter OTA from Mini Light Switch 1.0.0, after running the bootloader updater. The relay, the onboard button, and single, double and long presses work. After **Re-interview device**, Home Assistant shows the new button events but keeps the removed contact sensor as a stale entity, which can be deleted. The binding Toggle, the 70°C thermal clear point, and the bootloader updater's write have not been verified on hardware.
+
 #### Added
 - Generic Switch endpoint (endpoint 4) for a momentary push button on the SW terminal, with the MomentarySwitch, MomentarySwitchRelease, MomentarySwitchLongPress, and MomentarySwitchMultiPress features and MultiPressMax 2. It reports single press (InitialPress, ShortRelease, MultiPressComplete 1), double press (MultiPressComplete 2), and long press (LongPress after 600 ms held, LongRelease on release). Debounce is 30 ms and the multi-press window 400 ms. Home Assistant shows it as an event entity with `multi_press_1`, `multi_press_2`, `long_press`, and `long_release`.
 - All board pins in one header, `firmware/main/board.h`, so further Gen4 boards can be added as additional targets.

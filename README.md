@@ -43,7 +43,9 @@ There is one firmware, in [`firmware/`](firmware/), and it targets one device fo
 
 | Device | Firmware | Status |
 |---|---|---|
-| Shelly 1 Mini Gen4 | v2.0.0 | Untested on hardware |
+| Shelly 1 Mini Gen4 | v2.0.0 | Running on hardware, partly verified |
+
+Verified on one installed Shelly 1 Mini Gen4: the Matter OTA update from Mini Light Switch 1.0.0, the relay from Home Assistant and the onboard button, and single, double and long presses on the wall button. Not yet verified on hardware: the binding Toggle, the 70°C thermal clear point, and whether the [bootloader updater](bootloader-updater/README.md) actually installs the rollback bootloader (it ran and returned to the previous firmware, but its result is only visible over UART).
 
 Shelly 1 Gen4 support is out of this tree for now. Its earlier releases (Light, Outlet, Opener, Light Switch), and the Shelly 1 Mini Gen4 Outlet, stay on the [releases page](../../releases) and in git history, but they are no longer built or updated. The plan is to bring the Shelly 1 Gen4 back, and add the 1PM and 2PM, as further board targets of the same firmware. See the [Roadmap](docs/ROADMAP.md).
 
