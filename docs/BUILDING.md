@@ -114,6 +114,18 @@ cd firmware
 idf.py build
 ```
 
+To build without opening a shell, export both SDKs yourself, since a non-interactive `bash -c` skips the image's `bash.bashrc`:
+
+```bash
+docker run --rm \
+  -v "$PWD":/workspaces/shelly-1-gen4-matter-thread \
+  -w /workspaces/shelly-1-gen4-matter-thread/firmware \
+  automatous-io/shelly-gen4-builder:idf-v5.5.2-matter-2cb668c9 \
+  bash -c 'export IDF_PATH_FORCE=1; . $IDF_PATH/export.sh && . $ESP_MATTER_PATH/export.sh && idf.py build'
+```
+
+The container runs as root, so `build/` and `sdkconfig` end up owned by root on the host; `chown` them back if that gets in the way.
+
 No `set-target` step or extra flags are needed. The target (`esp32c6`) and every Thread, Matter, flash, and partition setting come from `firmware/sdkconfig.defaults`, which ESP-IDF reads on the first build to generate `sdkconfig`.
 
 The build produces individual `.bin` files in the `build/` directory. The application image is named after the project, `build/shelly-1-mini-gen4.bin`. The `Project build complete` line at the end of the build prints its exact path.

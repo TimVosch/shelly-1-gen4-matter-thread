@@ -80,7 +80,13 @@ cd ..
 python3 scripts/make-matter-ota.py bootloader-updater --pid 0x8006   # or 0x8005 for an Outlet
 ```
 
-This writes `bootloader-updater/automatous-io-bootloader-updater-v1.9.0.ota`. The version, 1.9.0, only has to be higher than the firmware on the device (1.0.0), or the update is not offered.
+This writes `bootloader-updater/automatous-io-bootloader-updater-v1.9.0-pid8006.ota`. The version, 1.9.0, only has to be higher than the firmware on the device (1.0.0), or the update is not offered. For a device already on 2.0.0 or later, build with a higher version instead, for example:
+
+```bash
+idf.py -DPROJECT_VER=2.0.1 build
+```
+
+The device comes back reporting its own version afterwards, so the updater's version never blocks a later firmware update.
 
 ### 3. Install it
 

@@ -143,7 +143,10 @@ def main():
     elif version != expected:
         sys.exit(f"version number {version} does not match version {version_str} — rebuild")
 
-    out = os.path.join(project_dir, f"automatous-io-{project}-v{version_str}.ota")
+    # An explicit --pid means the same build may be packaged for several
+    # product IDs, so the ID goes in the name to keep them apart.
+    pid_tag = f"-pid{pid:04x}" if args.pid else ""
+    out = os.path.join(project_dir, f"automatous-io-{project}-v{version_str}{pid_tag}.ota")
 
     cmd = [sys.executable, find_ota_image_tool(), "create",
            "-v", f"0x{vid:04X}", "-p", f"0x{pid:04X}",
